@@ -11,6 +11,12 @@ MAX_DEPTH_KITTI = 80
 
 N_BINS = 256
 
+# crop = torch.jit.script(
+#     torch.nn.Sequential(
+#         transforms.CenterCrop((480, 640)),
+#     )
+# )
+
 crop = transforms.Compose([
     transforms.CenterCrop((480, 640)),
 ])
@@ -24,7 +30,7 @@ model = UnetAdaptiveBins.build(n_bins=N_BINS, min_val=MIN_DEPTH, max_val=MAX_DEP
 pretrained_path = "AdaBins/pretrained/AdaBins_kitti.pt"
 model, _, _ = model_io.load_checkpoint(pretrained_path, model)
 
-depths = torch.Tensor(len(frames), 1, 480, 640)
+depths = torch.empty(len(frames), 1, 480, 640)
 for frame in frames:
     frame = crop(frame)
     example_rgb_batch = frame.unsqueeze(0).float().to('cpu')
