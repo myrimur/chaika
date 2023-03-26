@@ -13,7 +13,7 @@ MAX_DEPTH_KITTI = 80
 
 N_BINS = 256
 
-cmap = plt.get_cmap('coolwarm')
+cmap = plt.get_cmap('plasma')
 norm = plt.Normalize(vmin=MIN_DEPTH, vmax=MAX_DEPTH_KITTI)
 
 # crop = torch.jit.script(
@@ -30,7 +30,7 @@ crop = transforms.Compose([
 #     transforms.Normalize(mean=0.5, std=0.5)
 # ])
 
-frames, _, _ = read_video('vid.mp4', start_pts=0, end_pts=5, pts_unit='sec', output_format="TCHW")
+frames, _, _ = read_video('vid.mp4', start_pts=0, end_pts=1, pts_unit='sec', output_format="TCHW")
 model = UnetAdaptiveBins.build(n_bins=N_BINS, min_val=MIN_DEPTH, max_val=MAX_DEPTH_KITTI)
 pretrained_path = "AdaBins/pretrained/AdaBins_kitti.pt"
 model, _, _ = model_io.load_checkpoint(pretrained_path, model)
