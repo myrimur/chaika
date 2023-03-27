@@ -23,7 +23,7 @@ MAX_DEPTH = 100
 STEREO_SCALE_FACTOR = 5.4
 
 cmap = plt.get_cmap('plasma')
-norm = plt.Normalize(vmin=MIN_DEPTH, vmax=MAX_DEPTH)
+norm = plt.Normalize(vmin=MIN_DEPTH, vmax=MAX_DEPTH, clip=True)
 
 
 model_name = "mono+stereo_640x192"
@@ -60,15 +60,14 @@ crop = transforms.Compose([
 reader = VideoReader('vid.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
-# duration = reader.get_metadata()['video']['duration'][0]
-duration = 1
-frames = math.ceil(duration * fps)
+duration = 3
+frames = duration * math.ceil(fps)
 
 depths = torch.empty(frames, 480, 640, 3)
 
-for idx, frame in enumerate(itertools.takewhile(lambda x: x['pts'] <= duration, reader)):
+for idx, frame in enumerate(itertools.islice(reader, frames)):
     print(idx)
-    data = frame['data']
+    data = frame['data'].float() / 255.0
     data = crop(data).unsqueeze(0).float().to('cpu')
 
     with torch.no_grad():
@@ -76,7 +75,7 @@ for idx, frame in enumerate(itertools.takewhile(lambda x: x['pts'] <= duration, 
         outputs = depth_decoder(features)
 
     disp = outputs[("disp", 0)]
-    disp = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1]
+    disp = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
     print(torch.max(disp), torch.min(disp))
 
     colors = cmap(norm(disp.detach().numpy().flatten()))[:,:3] * 255
