@@ -60,7 +60,7 @@ crop = transforms.Compose([
 reader = VideoReader('vid.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
-duration = 20
+duration = 3
 frames = duration * math.ceil(fps)
 
 depths = torch.empty(frames, 480, 640, 3)
