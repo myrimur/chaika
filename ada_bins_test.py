@@ -11,13 +11,12 @@ from AdaBins.models import UnetAdaptiveBins
 import AdaBins.model_io as model_io
 
 MIN_DEPTH = 1e-3
-MAX_DEPTH_NYU = 10
-MAX_DEPTH_KITTI = 80
+MAX_DEPTH = 80
 
 N_BINS = 256
 
 cmap = plt.get_cmap('plasma')
-norm = plt.Normalize(vmin=MIN_DEPTH, vmax=MAX_DEPTH_KITTI)
+norm = plt.Normalize(vmin=MIN_DEPTH, vmax=MAX_DEPTH)
 
 # crop = torch.jit.script(
 #     torch.nn.Sequential(
@@ -36,7 +35,7 @@ fps = reader.get_metadata()['video']['fps'][0]
 duration = 3
 frames = math.ceil(duration * fps)
 
-model = UnetAdaptiveBins.build(n_bins=N_BINS, min_val=MIN_DEPTH, max_val=MAX_DEPTH_KITTI)
+model = UnetAdaptiveBins.build(n_bins=N_BINS, min_val=MIN_DEPTH, max_val=MAX_DEPTH)
 pretrained_path = "AdaBins/pretrained/AdaBins_kitti.pt"
 model, _, _ = model_io.load_checkpoint(pretrained_path, model)
 
