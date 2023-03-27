@@ -1,8 +1,11 @@
+import math
+
 import torch
-from torchvision.io import read_video, write_video
+from torchvision.io import write_video, VideoReader
 from torchvision import transforms
 
 import matplotlib.pyplot as plt
+import itertools
 
 from AdaBins.models import UnetAdaptiveBins
 import AdaBins.model_io as model_io
@@ -26,24 +29,26 @@ crop = transforms.Compose([
     transforms.CenterCrop((480, 640)),
 ])
 
-# normalize = transforms.Compose([
-#     transforms.Normalize(mean=0.5, std=0.5)
-# ])
+reader = VideoReader('vid.mp4', 'video')
 
-frames, _, _ = read_video('vid.mp4', start_pts=0, end_pts=1, pts_unit='sec', output_format="TCHW")
+fps = reader.get_metadata()['video']['fps'][0]
+# duration = reader.get_metadata()['video']['duration'][0]
+duration = 3
+frames = math.ceil(duration * fps)
+
 model = UnetAdaptiveBins.build(n_bins=N_BINS, min_val=MIN_DEPTH, max_val=MAX_DEPTH_KITTI)
 pretrained_path = "AdaBins/pretrained/AdaBins_kitti.pt"
 model, _, _ = model_io.load_checkpoint(pretrained_path, model)
 
-depths = torch.empty(len(frames), 240, 320, 3)
-for idx, frame in enumerate(frames):
-    print(idx)
-    frame = crop(frame)
-    example_rgb_batch = frame.unsqueeze(0).float().to('cpu')
-    _, predicted_depth = model(example_rgb_batch)
+depths = torch.empty(frames, 240, 320, 3)
 
-    # print(torch.clamp(predicted_depth, min=0, max=1))
-    # print(normalize(predicted_depth))
+for idx, frame in enumerate(itertools.takewhile(lambda x: x['pts'] <= duration, reader)):
+    print(idx)
+
+    data = frame['data']
+    data = crop(data)
+    example_rgb_batch = data.unsqueeze(0).float().to('cpu')
+    _, predicted_depth = model(example_rgb_batch)
 
     colors = cmap(norm(predicted_depth.detach().numpy().flatten()))[:,:3] * 255
 
@@ -52,5 +57,4 @@ for idx, frame in enumerate(frames):
 
     depths[idx] = frame_depth
 
-
-write_video('result.mp4', depths, fps=20)
+write_video('ada_bins_result.mp4', depths, fps=fps)
