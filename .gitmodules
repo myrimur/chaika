@@ -1,3 +1,6 @@
 [submodule "AdaBins"]
 	path = AdaBins
 	url = https://github.com/shariqfarooq123/AdaBins
+[submodule "monodepth2"]
+	path = monodepth2
+	url = https://github.com/nianticlabs/monodepth2
