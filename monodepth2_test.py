@@ -61,7 +61,7 @@ reader = VideoReader('vid.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
 duration = 3
-frames = duration * math.ceil(fps)
+frames = math.ceil(duration * fps)
 
 depths = torch.empty(frames, 480, 640, 3)
 
