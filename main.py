@@ -1,7 +1,7 @@
 import math
 
 import torch
-from torchvision.io import write_video, VideoReader
+from torchvision.io import write_video, VideoReader, read_image, ImageReadMode, write_png
 from torchvision import transforms
 
 import matplotlib.pyplot as plt
@@ -25,12 +25,33 @@ MAX_DEPTH = 100
 
 STEREO_SCALE_FACTOR = 5.4
 
-K = np.array([[520.9, 0, 325.1],
-                [0, 521, 249.7],
-                [0, 0, 1]], dtype=np.float32)
+cmap = plt.get_cmap('plasma')
+norm = plt.Normalize(vmin=MIN_DEPTH, vmax=MAX_DEPTH, clip=True)
+
+
+# K = np.array([[520.9, 0, 325.1],
+#                 [0, 521, 249.7],
+#                 [0, 0, 1]], dtype=np.float32)
+
+# K = np.array([[0.58, 0, 0.5],
+#               [0, 1.92, 0.5],
+#               [0, 0, 1]])
+
+K = np.array([[718.856, 0, 607.1928],
+              [0, 718.856, 185.2157],
+              [0, 0, 1]])
+
+CROP_DIMS = (640, 192)
+
+# K[0] *= CROP_DIMS[0]
+# K[1] *= CROP_DIMS[1]
+#
+# K *= 2
+
+print(K)
 
 crop = transforms.Compose([
-    transforms.CenterCrop((480, 640)),
+    transforms.CenterCrop(CROP_DIMS),
 ])
 
 
@@ -40,7 +61,7 @@ fps = reader.get_metadata()['video']['fps'][0]
 duration = 3
 frames = math.ceil(duration * fps)
 
-depths = torch.empty(frames, 480, 640, 3)
+depths = torch.empty(frames, *CROP_DIMS, 3)
 
 
 model_name = "mono+stereo_640x192"
@@ -65,37 +86,43 @@ depth_decoder.eval()
 
 
 def calc_depth(frame):
-    data = frame['data'].float() / 255.0
-    data = crop(data).unsqueeze(0).float().to('cpu')
+    data = frame.float() / 255.0
+    data = data.unsqueeze(0).float().to('cpu')
 
     with torch.no_grad():
         features = encoder(data)
         outputs = depth_decoder(features)
 
     disp = outputs[("disp", 0)]
-    disp = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
+    depth = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
 
-    return torch.reshape(disp[0], (480, 640))
+    return depth
 
 
 def pixel_to_camera(point):
-    return np.array([point[0] - K[0, 2] / K[0, 0],
-                     point[1] - K[1, 2] / K[1, 1]])
+    return np.array([(point[0] - K[0, 2]) / K[0, 0],
+                     (point[1] - K[1, 2]) / K[1, 1]])
 
 points_3d_1 = []
 points_3d_2 = []
 
 
-for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
-    print(frame_1['data'].shape)
-    height_ratio = frame_1['data'].shape[1] / 480.0
-    weight_ratio = frame_1['data'].shape[2] / 640.0
-    print(height_ratio, weight_ratio)
+# for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
+#     frame_1 = crop(frame_1['data'])
+#     frame_2 = crop(frame_2['data'])
 
-    img_1 = frame_1['data'].numpy().transpose(1, 2, 0)
-    img_2 = frame_2['data'].numpy().transpose(1, 2, 0)
+def t():
+    frame_1 = crop(read_image("000001.png", ImageReadMode.RGB))
+    frame_2 = crop(read_image("000002.png", ImageReadMode.RGB))
 
-    img_1 = cv.cvtColor(img_1,cv.COLOR_BGR2GRAY)
+    print(frame_1.shape)
+
+    img_1 = frame_1.numpy().transpose(1, 2, 0)
+    img_2 = frame_2.numpy().transpose(1, 2, 0)
+
+    print(img_1.shape)
+
+    img_1 = cv.cvtColor(img_1, cv.COLOR_BGR2GRAY)
     img_2 = cv.cvtColor(img_2, cv.COLOR_BGR2GRAY)
 
     orb = cv.ORB_create()
@@ -107,20 +134,32 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(rea
     matches = bf.match(des1, des2)
     matches = sorted(matches, key=lambda x: x.distance)
 
-    # img3 = cv.drawMatches(img_1, kp1, img_2, kp2, matches, None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    img3 = cv.drawMatches(img_1, kp1, img_2, kp2, matches, None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    cv.imwrite('ttt.jpg', img3)
 
-    # cv.imwrite('test.jpg', img3)
 
+    depth_1 = calc_depth(frame_1)
+    depth_2 = calc_depth(frame_2)
 
-    depth = calc_depth(frame_1)
-    print(depth.shape)
+    colors = cmap(norm(depth_1.detach().numpy().flatten()))[:,:3] * 255
+    frame_depth = torch.tensor(colors, dtype=torch.uint8)
+    frame_depth = torch.reshape(frame_depth, (3, *CROP_DIMS))
+
+    write_png(frame_depth, "kjdqsajda.png")
+
+    depth_1 = torch.reshape(depth_1[0], CROP_DIMS)
+    depth_2 = torch.reshape(depth_2[0], CROP_DIMS)
+
+    print(depth_1.shape)
+
+    print("Depth:", depth_1[100, 100])
 
     for match in matches:
         p1 = kp1[match.queryIdx].pt
         p2 = kp2[match.trainIdx].pt
 
-        d_1 = depth[int(p1[1] / height_ratio), int(p1[0] / weight_ratio)]
-        d_2 = depth[int(p2[1] / height_ratio), int(p2[0] / weight_ratio)]
+        d_1 = depth_1[int(p1[1]), int(p1[0])]
+        d_2 = depth_2[int(p2[1]), int(p2[0])]
 
         p1 = d_1 * pixel_to_camera(p1)
         p2 = d_2 * pixel_to_camera(p2)
@@ -128,6 +167,11 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(rea
         points_3d_1.append(np.array([p1[0], p1[1], d_1]))
         points_3d_2.append(np.array([p2[0], p2[1], d_2]))
 
+    print(len(list(filter(lambda x: x[0] < 0, points_3d_1))))
+    print(len(points_3d_1))
+
     print(points_3d_1)
 
-    break
+    # break
+
+t()
