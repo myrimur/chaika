@@ -25,28 +25,12 @@ MAX_DEPTH = 100
 
 STEREO_SCALE_FACTOR = 5.4
 
-cmap = plt.get_cmap('plasma')
-norm = plt.Normalize(vmin=MIN_DEPTH, vmax=MAX_DEPTH, clip=True)
+CROP_DIMS = (192, 640)
 
 
-# K = np.array([[520.9, 0, 325.1],
-#                 [0, 521, 249.7],
-#                 [0, 0, 1]], dtype=np.float32)
-
-# K = np.array([[0.58, 0, 0.5],
-#               [0, 1.92, 0.5],
-#               [0, 0, 1]])
-
-K = np.array([[718.856, 0, 607.1928],
-              [0, 718.856, 185.2157],
+K = np.array([[718.856, 0, 607.1928 * CROP_DIMS[-1] / 1241],
+              [0, 718.856, 185.2157 * CROP_DIMS[0]  / 376],
               [0, 0, 1]])
-
-CROP_DIMS = (640, 192)
-
-# K[0] *= CROP_DIMS[0]
-# K[1] *= CROP_DIMS[1]
-#
-# K *= 2
 
 print(K)
 
@@ -96,12 +80,13 @@ def calc_depth(frame):
     disp = outputs[("disp", 0)]
     depth = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
 
-    return depth
+    return torch.reshape(depth[0], CROP_DIMS)
 
 
 def pixel_to_camera(point):
     return np.array([(point[0] - K[0, 2]) / K[0, 0],
                      (point[1] - K[1, 2]) / K[1, 1]])
+
 
 points_3d_1 = []
 points_3d_2 = []
@@ -122,33 +107,27 @@ def t():
 
     print(img_1.shape)
 
-    img_1 = cv.cvtColor(img_1, cv.COLOR_BGR2GRAY)
+    ggg_img_1 = cv.cvtColor(img_1, cv.COLOR_BGR2GRAY)
     img_2 = cv.cvtColor(img_2, cv.COLOR_BGR2GRAY)
 
     orb = cv.ORB_create()
 
-    kp1, des1 = orb.detectAndCompute(img_1, None)
+    kp1, des1 = orb.detectAndCompute(ggg_img_1, None)
     kp2, des2 = orb.detectAndCompute(img_2, None)
+
+    img = cv.drawKeypoints(img_1, kp1, ggg_img_1)
+    cv.imwrite('key.jpg', img)
 
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
     matches = bf.match(des1, des2)
     matches = sorted(matches, key=lambda x: x.distance)
 
     img3 = cv.drawMatches(img_1, kp1, img_2, kp2, matches, None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    cv.imwrite('ttt.jpg', img3)
+    cv.imwrite('h.jpg', img3)
 
 
     depth_1 = calc_depth(frame_1)
     depth_2 = calc_depth(frame_2)
-
-    colors = cmap(norm(depth_1.detach().numpy().flatten()))[:,:3] * 255
-    frame_depth = torch.tensor(colors, dtype=torch.uint8)
-    frame_depth = torch.reshape(frame_depth, (3, *CROP_DIMS))
-
-    write_png(frame_depth, "kjdqsajda.png")
-
-    depth_1 = torch.reshape(depth_1[0], CROP_DIMS)
-    depth_2 = torch.reshape(depth_2[0], CROP_DIMS)
 
     print(depth_1.shape)
 
