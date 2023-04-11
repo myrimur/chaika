@@ -100,56 +100,36 @@ def t():
     frame_1 = crop(read_image("000001.png", ImageReadMode.RGB))
     frame_2 = crop(read_image("000002.png", ImageReadMode.RGB))
 
-    print(frame_1.shape)
-
     img_1 = frame_1.numpy().transpose(1, 2, 0)
     img_2 = frame_2.numpy().transpose(1, 2, 0)
 
-    print(img_1.shape)
-
-    ggg_img_1 = cv.cvtColor(img_1, cv.COLOR_BGR2GRAY)
+    img_1 = cv.cvtColor(img_1, cv.COLOR_BGR2GRAY)
     img_2 = cv.cvtColor(img_2, cv.COLOR_BGR2GRAY)
 
     orb = cv.ORB_create()
 
-    kp1, des1 = orb.detectAndCompute(ggg_img_1, None)
-    kp2, des2 = orb.detectAndCompute(img_2, None)
-
-    img = cv.drawKeypoints(img_1, kp1, ggg_img_1)
-    cv.imwrite('key.jpg', img)
+    kp_1, des_1 = orb.detectAndCompute(img_1, None)
+    kp_2, des_2 = orb.detectAndCompute(img_2, None)
 
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
+    matches = bf.match(des_1, des_2)
     matches = sorted(matches, key=lambda x: x.distance)
-
-    img3 = cv.drawMatches(img_1, kp1, img_2, kp2, matches, None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    cv.imwrite('h.jpg', img3)
-
 
     depth_1 = calc_depth(frame_1)
     depth_2 = calc_depth(frame_2)
 
-    print(depth_1.shape)
-
-    print("Depth:", depth_1[100, 100])
-
     for match in matches:
-        p1 = kp1[match.queryIdx].pt
-        p2 = kp2[match.trainIdx].pt
+        p_1 = kp_1[match.queryIdx].pt
+        p_2 = kp_2[match.trainIdx].pt
 
-        d_1 = depth_1[int(p1[1]), int(p1[0])]
-        d_2 = depth_2[int(p2[1]), int(p2[0])]
+        d_1 = depth_1[int(p_1[1]), int(p_1[0])]
+        d_2 = depth_2[int(p_2[1]), int(p_2[0])]
 
-        p1 = d_1 * pixel_to_camera(p1)
-        p2 = d_2 * pixel_to_camera(p2)
+        p_1 = d_1 * pixel_to_camera(p_1)
+        p_2 = d_2 * pixel_to_camera(p_2)
 
-        points_3d_1.append(np.array([p1[0], p1[1], d_1]))
-        points_3d_2.append(np.array([p2[0], p2[1], d_2]))
-
-    print(len(list(filter(lambda x: x[0] < 0, points_3d_1))))
-    print(len(points_3d_1))
-
-    print(points_3d_1)
+        points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
+        points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
     # break
 
