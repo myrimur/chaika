@@ -20,6 +20,8 @@ import monodepth2.networks as networks
 from monodepth2.utils import download_model_if_doesnt_exist
 from monodepth2.layers import disp_to_depth
 
+from visualization import show_point_cloud
+
 MIN_DEPTH = 0.1
 MAX_DEPTH = 100
 
@@ -151,5 +153,7 @@ def t():
     points_hom = np.hstack((points_3d_2, np.ones((points_3d_2.shape[0], 1))))
     points_transformed_hom = np.dot(T, points_hom.T).T
     points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
+
+    show_point_cloud(points_3d_1)
 
 t()
