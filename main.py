@@ -88,8 +88,11 @@ def pixel_to_camera(point):
                      (point[1] - K[1, 2]) / K[1, 1]])
 
 
+# points_2d_1 = []
+points_2d_2 = []
+
 points_3d_1 = []
-points_3d_2 = []
+# points_3d_2 = []
 
 
 # for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
@@ -122,6 +125,8 @@ def t():
         p_1 = kp_1[match.queryIdx].pt
         p_2 = kp_2[match.trainIdx].pt
 
+        points_2d_2.append(p_2)
+
         d_1 = depth_1[int(p_1[1]), int(p_1[0])]
         d_2 = depth_2[int(p_2[1]), int(p_2[0])]
 
@@ -129,8 +134,18 @@ def t():
         p_2 = d_2 * pixel_to_camera(p_2)
 
         points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
-        points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
+        # points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
-    # break
+    _, rvec, tvec = cv.solvePnP(np.array(points_3d_1), np.array(points_2d_2), K, None)
+    print(rvec, tvec)
+
+    # pts2d_reshape = kp_2.reshape(-1, 1, 2)
+    # pts3d_homogeneous = np.hstack((points_3d_1, np.ones((points_3d_1.shape[0], 1))))
+    # pts2d_projected, _ = cv.projectPoints(pts3d_homogeneous, rvec, tvec, K, None)
+    #
+    # R, _ = cv.Rodrigues(rvec)
+    # pts3d_in_world = np.dot(R.T, (points_3d_1 - tvec.T))
+    #
+    # print(pts2d_projected)
 
 t()
