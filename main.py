@@ -20,6 +20,8 @@ import monodepth2.networks as networks
 from monodepth2.utils import download_model_if_doesnt_exist
 from monodepth2.layers import disp_to_depth
 
+from visualization import show_point_cloud
+
 MIN_DEPTH = 0.1
 MAX_DEPTH = 100
 
@@ -147,5 +149,6 @@ def t():
     # pts3d_in_world = np.dot(R.T, (points_3d_1 - tvec.T))
     #
     # print(pts2d_projected)
+    show_point_cloud(points_3d_1)
 
 t()
