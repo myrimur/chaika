@@ -39,10 +39,10 @@ crop = transforms.Compose([
 ])
 
 
-reader = VideoReader('vid.mp4', 'video')
+reader = VideoReader('kuku.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
-duration = 1
+duration = 10
 frames = math.ceil(duration * fps)
 
 depths = torch.empty(frames, *CROP_DIMS, 3)
@@ -90,7 +90,7 @@ def pixel_to_camera(point):
 # """"
 trajectory = [np.eye(4)]
 
-for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader.seek(10), frames))):
+for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
     print(idx)
 
     frame_1 = crop(frame_1['data'])
@@ -149,7 +149,7 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(rea
     T[:3, :3] = R
     T[:3, 3] = tvec
 
-    T = T @ trajectory[idx]
+    T = trajectory[idx] @ T
 
     trajectory.append(T)
 
@@ -161,7 +161,6 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(rea
 
     # show_point_cloud(points_3d_2 + points_transformed.tolist())
 
-print(trajectory)
 
 plot_trajectory(trajectory)
 # """
