@@ -34,8 +34,6 @@ K = np.array([[718.856, 0, 607.1928 * CROP_DIMS[-1] / 1241],
               [0, 718.856, 185.2157 * CROP_DIMS[0]  / 376],
               [0, 0, 1]])
 
-print(K)
-
 crop = transforms.Compose([
     transforms.CenterCrop(CROP_DIMS),
 ])
@@ -138,7 +136,7 @@ def t():
         points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
         points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
-    _, rvec, tvec = cv.solvePnP(np.array(points_3d_1), np.array(points_2d_2), K, None)
+    _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_1), np.array(points_2d_2), K, None)
     rvec = rvec.flatten()
     tvec = tvec.flatten()
 
@@ -148,12 +146,12 @@ def t():
     T[:3, :3] = R
     T[:3, 3] = tvec
 
-    points_3d_2 = np.array(points_3d_2)
+    points_3d_1 = np.array(points_3d_1)
 
-    points_hom = np.hstack((points_3d_2, np.ones((points_3d_2.shape[0], 1))))
+    points_hom = np.hstack((points_3d_1, np.ones((points_3d_1.shape[0], 1))))
     points_transformed_hom = np.dot(T, points_hom.T).T
     points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
 
-    show_point_cloud(points_3d_1)
+    show_point_cloud(points_3d_2 + points_transformed.tolist())
 
 t()
