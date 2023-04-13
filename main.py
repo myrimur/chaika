@@ -20,7 +20,7 @@ import monodepth2.networks as networks
 from monodepth2.utils import download_model_if_doesnt_exist
 from monodepth2.layers import disp_to_depth
 
-from visualization import show_point_cloud
+from visualization import *
 
 MIN_DEPTH = 0.1
 MAX_DEPTH = 100
@@ -42,7 +42,7 @@ crop = transforms.Compose([
 reader = VideoReader('vid.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
-duration = 3
+duration = 1
 frames = math.ceil(duration * fps)
 
 depths = torch.empty(frames, *CROP_DIMS, 3)
@@ -87,21 +87,23 @@ def pixel_to_camera(point):
     return np.array([(point[0] - K[0, 2]) / K[0, 0],
                      (point[1] - K[1, 2]) / K[1, 1]])
 
+# """"
+trajectory = [np.eye(4)]
 
+for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader.seek(10), frames))):
+    print(idx)
 
-# for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
-#     frame_1 = crop(frame_1['data'])
-#     frame_2 = crop(frame_2['data'])
+    frame_1 = crop(frame_1['data'])
+    frame_2 = crop(frame_2['data'])
 
-def t():
-    # points_2d_1 = []
+    points_2d_1 = []
     points_2d_2 = []
 
     points_3d_1 = []
     points_3d_2 = []
 
-    frame_1 = crop(read_image("000001.png", ImageReadMode.RGB))
-    frame_2 = crop(read_image("000002.png", ImageReadMode.RGB))
+    # frame_1 = crop(read_image("000001.png", ImageReadMode.RGB))
+    # frame_2 = crop(read_image("000002.png", ImageReadMode.RGB))
 
     img_1 = frame_1.numpy().transpose(1, 2, 0)
     img_2 = frame_2.numpy().transpose(1, 2, 0)
@@ -125,6 +127,7 @@ def t():
         p_1 = kp_1[match.queryIdx].pt
         p_2 = kp_2[match.trainIdx].pt
 
+        points_2d_1.append(p_1)
         points_2d_2.append(p_2)
 
         d_1 = depth_1[int(p_1[1]), int(p_1[0])]
@@ -136,7 +139,7 @@ def t():
         points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
         points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
-    _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_1), np.array(points_2d_2), K, None)
+    _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
     rvec = rvec.flatten()
     tvec = tvec.flatten()
 
@@ -146,12 +149,23 @@ def t():
     T[:3, :3] = R
     T[:3, 3] = tvec
 
-    points_3d_1 = np.array(points_3d_1)
+    T = T @ trajectory[idx]
 
-    points_hom = np.hstack((points_3d_1, np.ones((points_3d_1.shape[0], 1))))
-    points_transformed_hom = np.dot(T, points_hom.T).T
-    points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
+    trajectory.append(T)
 
-    show_point_cloud(points_3d_2 + points_transformed.tolist())
+    # points_3d_2 = np.array(points_3d_2)
 
-t()
+    # points_hom = np.hstack((points_3d_2, np.ones((points_3d_2.shape[0], 1))))
+    # points_transformed_hom = np.dot(T, points_hom.T).T
+    # points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
+
+    # show_point_cloud(points_3d_2 + points_transformed.tolist())
+
+print(trajectory)
+
+plot_trajectory(trajectory)
+# """
+# cloud = PointCloud()
+# cloud.add_points([[1, 1, 1]])
+# cloud.run()
+# cloud.add_points([[10, 10, 10]])
