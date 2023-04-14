@@ -167,19 +167,19 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(rea
 """
 
 
-def plot(queue):
+def plot(points):
     pc = PointCloud()
-    pc.plot_points(queue)
+    pc.plot_points(points)
 
 
 with multiprocessing.Manager() as manager:
-    q = manager.Queue()
+    points = manager.list()
 
-    t = multiprocessing.Process(target=plot, args=(q,))
+    t = multiprocessing.Process(target=plot, args=(points,))
     t.start()
 
     for i in range(10):
-        q.put(np.array([i, i, i]))
+        points.append(np.array([i, i, i]))
 
         time.sleep(2)
 

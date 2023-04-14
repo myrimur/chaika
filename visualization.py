@@ -58,7 +58,7 @@ class PointCloud:
 
 
 
-    def plot_points(self, q: Queue):
+    def plot_points(self, points):
         ui_width = 175
         handler = pango.Handler3D(self.s_cam)
         self.d_cam = (
@@ -73,11 +73,7 @@ class PointCloud:
             .SetHandler(handler)
         )
 
-        points = []
-
         while not pango.ShouldQuit():
-            while not q.empty():
-                points.append(q.get(block=False))
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
