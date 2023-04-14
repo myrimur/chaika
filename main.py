@@ -12,6 +12,7 @@ import cv2 as cv
 import numpy as np
 
 import sys
+
 sys.path.insert(0, "monodepth2/")
 
 import os
@@ -29,24 +30,21 @@ STEREO_SCALE_FACTOR = 5.4
 
 CROP_DIMS = (192, 640)
 
-
 K = np.array([[718.856, 0, 607.1928 * CROP_DIMS[-1] / 1241],
-              [0, 718.856, 185.2157 * CROP_DIMS[0]  / 376],
+              [0, 718.856, 185.2157 * CROP_DIMS[0] / 376],
               [0, 0, 1]])
 
 crop = transforms.Compose([
     transforms.CenterCrop(CROP_DIMS),
 ])
 
-
-reader = VideoReader('kuku.mp4', 'video')
+reader = VideoReader('ucu_UsuiqF6T.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
-duration = 10
-frames = math.ceil(duration * fps)
+duration = 19
+frames = math.floor(duration * fps)
 
 depths = torch.empty(frames, *CROP_DIMS, 3)
-
 
 model_name = "mono+stereo_640x192"
 
@@ -67,6 +65,43 @@ depth_decoder.load_state_dict(loaded_dict)
 
 encoder.eval()
 depth_decoder.eval()
+
+
+class KittiRaw:
+    def __init__(self, path, transform=None):
+        self.path = path
+        self.transform = transform
+        self.length = len(os.listdir(os.path.join(path, 'image_02/data')))
+
+        # self.calib = {}
+        # with open(os.path.join(path, 'calib_cam_to_cam.txt')) as f:
+        #     for line in f:
+        #         key, *values = line.split()
+        #         self.calib[key] = np.array([float(v) for v in values])
+
+        # self.timestamps = []
+        # with open(os.path.join(path, 'timestamps.txt')) as f:
+        #     for line in f:
+        #         self.timestamps.append(line.split()[0])
+        #
+        # self.timestamps = np.array(self.timestamps)
+
+    def __getitem__(self, idx):
+        # timestamp = self.timestamps[idx]
+        # image = cv.imread(os.path.join(self.path, 'image_02', f'{idx:010}.png'), cv.IMREAD_UNCHANGED)
+        image = read_image(os.path.join(self.path, 'image_02/data', f'{idx:010}.png'), ImageReadMode.RGB)
+        if self.transform:
+            image = self.transform(image)
+        # image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+
+        # return {'data': image, 'timestamp': timestamp}
+        return image
+
+    def __len__(self):
+        return self.length
+
+
+data = KittiRaw('data/drive/2011_09_26_drive_0009_sync', transform=crop)
 
 
 def calc_depth(frame):
@@ -90,11 +125,11 @@ def pixel_to_camera(point):
 # """"
 trajectory = [np.eye(4)]
 
-for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
+for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(data, len(data)))):
     print(idx)
 
-    frame_1 = crop(frame_1['data'])
-    frame_2 = crop(frame_2['data'])
+    # frame_1 = crop(frame_1['data'])
+    # frame_2 = crop(frame_2['data'])
 
     points_2d_1 = []
     points_2d_2 = []
@@ -160,7 +195,6 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(rea
     # points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
 
     # show_point_cloud(points_3d_2 + points_transformed.tolist())
-
 
 plot_trajectory(trajectory)
 # """
