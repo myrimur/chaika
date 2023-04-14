@@ -22,6 +22,7 @@ from monodepth2.utils import download_model_if_doesnt_exist
 from monodepth2.layers import disp_to_depth
 
 from visualization import *
+from kitti import *
 
 MIN_DEPTH = 0.1
 MAX_DEPTH = 100
@@ -30,9 +31,9 @@ STEREO_SCALE_FACTOR = 5.4
 
 CROP_DIMS = (192, 640)
 
-K = np.array([[718.856, 0, 607.1928 * CROP_DIMS[-1] / 1241],
-              [0, 718.856, 185.2157 * CROP_DIMS[0] / 376],
-              [0, 0, 1]])
+K = P_rect_02
+K[0] *= CROP_DIMS[1]
+K[1] *= CROP_DIMS[0]
 
 crop = transforms.Compose([
     transforms.CenterCrop(CROP_DIMS),
@@ -67,41 +68,7 @@ encoder.eval()
 depth_decoder.eval()
 
 
-class KittiRaw:
-    def __init__(self, path, transform=None):
-        self.path = path
-        self.transform = transform
-        self.length = len(os.listdir(os.path.join(path, 'image_02/data')))
-
-        # self.calib = {}
-        # with open(os.path.join(path, 'calib_cam_to_cam.txt')) as f:
-        #     for line in f:
-        #         key, *values = line.split()
-        #         self.calib[key] = np.array([float(v) for v in values])
-
-        # self.timestamps = []
-        # with open(os.path.join(path, 'timestamps.txt')) as f:
-        #     for line in f:
-        #         self.timestamps.append(line.split()[0])
-        #
-        # self.timestamps = np.array(self.timestamps)
-
-    def __getitem__(self, idx):
-        # timestamp = self.timestamps[idx]
-        # image = cv.imread(os.path.join(self.path, 'image_02', f'{idx:010}.png'), cv.IMREAD_UNCHANGED)
-        image = read_image(os.path.join(self.path, 'image_02/data', f'{idx:010}.png'), ImageReadMode.RGB)
-        if self.transform:
-            image = self.transform(image)
-        # image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
-
-        # return {'data': image, 'timestamp': timestamp}
-        return image
-
-    def __len__(self):
-        return self.length
-
-
-data = KittiRaw('data/drive/2011_09_26_drive_0009_sync', transform=crop)
+data = KittiRaw('data/2011_09_26_drive_0009_sync/', transform=crop)
 
 
 def calc_depth(frame):
