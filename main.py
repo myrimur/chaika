@@ -11,6 +11,10 @@ import cv2 as cv
 
 import numpy as np
 
+import time
+
+import multiprocessing
+
 import sys
 sys.path.insert(0, "monodepth2/")
 
@@ -42,7 +46,7 @@ crop = transforms.Compose([
 reader = VideoReader('kuku.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
-duration = 10
+duration = 0.25
 frames = math.ceil(duration * fps)
 
 depths = torch.empty(frames, *CROP_DIMS, 3)
@@ -87,7 +91,7 @@ def pixel_to_camera(point):
     return np.array([(point[0] - K[0, 2]) / K[0, 0],
                      (point[1] - K[1, 2]) / K[1, 1]])
 
-# """"
+""""
 trajectory = [np.eye(4)]
 
 for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
@@ -160,11 +164,23 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(rea
     # points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
 
     # show_point_cloud(points_3d_2 + points_transformed.tolist())
+"""
 
 
-plot_trajectory(trajectory)
-# """
-# cloud = PointCloud()
-# cloud.add_points([[1, 1, 1]])
-# cloud.run()
-# cloud.add_points([[10, 10, 10]])
+def plot(queue):
+    pc = PointCloud()
+    pc.plot_points(queue)
+
+
+with multiprocessing.Manager() as manager:
+    q = manager.Queue()
+
+    t = multiprocessing.Process(target=plot, args=(q,))
+    t.start()
+
+    for i in range(10):
+        q.put(np.array([i, i, i]))
+
+        time.sleep(2)
+
+    t.join()
