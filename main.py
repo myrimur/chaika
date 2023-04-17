@@ -24,6 +24,8 @@ from monodepth2.layers import disp_to_depth
 from visualization import *
 from kitti import *
 
+import multiprocessing
+
 NUM_VISUALIZED_KEYPOINTS = 10
 
 MIN_DEPTH = 0.1
@@ -41,13 +43,13 @@ crop = transforms.Compose([
     transforms.CenterCrop(CROP_DIMS),
 ])
 
-reader = VideoReader('ucu_UsuiqF6T.mp4', 'video')
+# reader = VideoReader('ucu_UsuiqF6T.mp4', 'video')
 
-fps = reader.get_metadata()['video']['fps'][0]
-duration = 19
-frames = math.floor(duration * fps)
+# fps = reader.get_metadata()['video']['fps'][0]
+# duration = 19
+# frames = math.floor(duration * fps)
 
-depths = torch.empty(frames, *CROP_DIMS, 3)
+# depths = torch.empty(frames, *CROP_DIMS, 3)
 
 model_name = "mono+stereo_640x192"
 
@@ -70,7 +72,7 @@ encoder.eval()
 depth_decoder.eval()
 
 
-data = KittiRaw('data/2011_09_26_drive_0009_sync/', transform=crop)
+data = KittiRaw('2011_09_26_drive_0009_sync/', transform=crop)
 
 
 def calc_depth(frame):
@@ -91,7 +93,20 @@ def pixel_to_camera(point):
     return np.array([(point[0] - K[0, 2]) / K[0, 0],
                      (point[1] - K[1, 2]) / K[1, 1]])
 
-# """"
+
+def plot(points, trajectory):
+    pc = PointCloud()
+    pc.plot_points_and_trajectory(points, trajectory)
+
+
+manager = multiprocessing.Manager()
+plot_points = manager.list()
+plot_trajectory = manager.list()
+
+plot_process = multiprocessing.Process(target=plot, args=(plot_points, plot_trajectory,))
+plot_process.start()
+
+
 trajectory = [np.eye(4)]
 points = {}
 kp_prev, des_prev = None, None
@@ -170,14 +185,12 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     for i, match in enumerate(matches[:NUM_VISUALIZED_KEYPOINTS]):
         des = des_2[match.trainIdx]
+        if des.tobytes() not in points:
+            plot_points.append(points_transformed[i])
         points[des.tobytes()] = points_transformed[i]
 
-    # show_point_cloud(points_3d_2 + points_transformed.tolist())
+    plot_trajectory.append(T)
 
-# plot_trajectory(trajectory)
-show_point_cloud_and_trajectory(points.values(), trajectory)
-# """
-# cloud = PointCloud()
-# cloud.add_points([[1, 1, 1]])
-# cloud.run()
-# cloud.add_points([[10, 10, 10]])
+# show_point_cloud_and_trajectory(points.values(), trajectory)
+
+plot_process.join()
