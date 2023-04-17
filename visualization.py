@@ -90,7 +90,7 @@ def plot_trajectory(trajectory):
         pango.FinishFrame()
 
 
-def show_point_cloud_and_trajectory(points, trajectory):
+def show_point_cloud_and_trajectory(points, trajectory, points_lock, trajectory_lock):
     pango.CreateWindowAndBind("Point Cloud Viewer", 1024, 768)
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_BLEND)
@@ -122,9 +122,10 @@ def show_point_cloud_and_trajectory(points, trajectory):
 
         glPointSize(2)
         glBegin(GL_POINTS)
-        for p in points:
-            glColor3d(0, 1, 0)
-            glVertex3d(p[0], p[1], p[2])
+        with points_lock:
+            for p in points:
+                glColor3d(0, 1, 0)
+                glVertex3d(p[0], p[1], p[2])
 
         glEnd()
 
@@ -132,10 +133,11 @@ def show_point_cloud_and_trajectory(points, trajectory):
         glBegin(GL_LINES)
 
         p = np.array([0, 0, 0])
-        for T in trajectory:
-            glVertex3d(p[0], p[1], p[2])
-            p = T[:-1, -1]
-            glVertex3d(p[0], p[1], p[2])
+        with trajectory_lock:
+            for T in trajectory:
+                glVertex3d(p[0], p[1], p[2])
+                p = T[:-1, -1]
+                glVertex3d(p[0], p[1], p[2])
 
         glEnd()
         pango.FinishFrame()

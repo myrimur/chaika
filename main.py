@@ -1,4 +1,5 @@
 import math
+from threading import Thread, Lock
 
 import torch
 from torchvision.io import write_video, VideoReader, read_image, ImageReadMode, write_png
@@ -94,6 +95,11 @@ def pixel_to_camera(point):
 # """"
 trajectory = [np.eye(4)]
 points = {}
+trajectory_lock = Lock()
+points_lock = Lock()
+
+Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, points_lock, trajectory_lock)).start()
+
 kp_prev, des_prev = None, None
 for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(data, len(data)))):
     print(idx)
@@ -160,7 +166,8 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     T = trajectory[idx] @ T
 
-    trajectory.append(T)
+    with trajectory_lock:
+        trajectory.append(T)
 
     points_3d_2 = np.array(points_3d_2[:NUM_VISUALIZED_KEYPOINTS])
 
@@ -170,12 +177,13 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     for i, match in enumerate(matches[:NUM_VISUALIZED_KEYPOINTS]):
         des = des_2[match.trainIdx]
-        points[des.tobytes()] = points_transformed[i]
+        with points_lock:
+            points[des.tobytes()] = points_transformed[i]
 
     # show_point_cloud(points_3d_2 + points_transformed.tolist())
 
 # plot_trajectory(trajectory)
-show_point_cloud_and_trajectory(points.values(), trajectory)
+# show_point_cloud_and_trajectory(points.values(), trajectory)
 # """
 # cloud = PointCloud()
 # cloud.add_points([[1, 1, 1]])
