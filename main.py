@@ -24,6 +24,8 @@ from monodepth2.layers import disp_to_depth
 from visualization import *
 from kitti import *
 
+NUM_VISUALIZED_KEYPOINTS = 10
+
 MIN_DEPTH = 0.1
 MAX_DEPTH = 100
 
@@ -91,7 +93,8 @@ def pixel_to_camera(point):
 
 # """"
 trajectory = [np.eye(4)]
-
+points = {}
+kp_prev, des_prev = None, None
 for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(data, len(data)))):
     print(idx)
 
@@ -115,8 +118,12 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     orb = cv.ORB_create()
 
-    kp_1, des_1 = orb.detectAndCompute(img_1, None)
+    if kp_prev is None:
+        kp_1, des_1 = orb.detectAndCompute(img_1, None)
+    else:
+        kp_1, des_1 = kp_prev, des_prev
     kp_2, des_2 = orb.detectAndCompute(img_2, None)
+    kp_prev, des_prev = kp_2, des_2
 
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
     matches = bf.match(des_1, des_2)
@@ -155,15 +162,20 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     trajectory.append(T)
 
-    # points_3d_2 = np.array(points_3d_2)
+    points_3d_2 = np.array(points_3d_2[:NUM_VISUALIZED_KEYPOINTS])
 
-    # points_hom = np.hstack((points_3d_2, np.ones((points_3d_2.shape[0], 1))))
-    # points_transformed_hom = np.dot(T, points_hom.T).T
-    # points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
+    points_hom = np.hstack((points_3d_2, np.ones((points_3d_2.shape[0], 1))))
+    points_transformed_hom = np.dot(T, points_hom.T).T
+    points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
+
+    for i, match in enumerate(matches[:NUM_VISUALIZED_KEYPOINTS]):
+        des = des_2[match.trainIdx]
+        points[des.tobytes()] = points_transformed[i]
 
     # show_point_cloud(points_3d_2 + points_transformed.tolist())
 
-plot_trajectory(trajectory)
+# plot_trajectory(trajectory)
+show_point_cloud_and_trajectory(points.values(), trajectory)
 # """
 # cloud = PointCloud()
 # cloud.add_points([[1, 1, 1]])
