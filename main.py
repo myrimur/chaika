@@ -1,7 +1,8 @@
 import math
+from threading import Thread, Lock
 
 import torch
-from torchvision.io import write_video, VideoReader
+from torchvision.io import write_video, VideoReader, read_image, ImageReadMode, write_png
 from torchvision import transforms
 
 import matplotlib.pyplot as plt
@@ -12,6 +13,7 @@ import cv2 as cv
 import numpy as np
 
 import sys
+
 sys.path.insert(0, "monodepth2/")
 
 import os
@@ -20,28 +22,33 @@ import monodepth2.networks as networks
 from monodepth2.utils import download_model_if_doesnt_exist
 from monodepth2.layers import disp_to_depth
 
+from visualization import *
+from kitti import *
+
+NUM_VISUALIZED_KEYPOINTS = 10
+
 MIN_DEPTH = 0.1
 MAX_DEPTH = 100
 
 STEREO_SCALE_FACTOR = 5.4
 
-K = np.array([[520.9, 0, 325.1],
-                [0, 521, 249.7],
-                [0, 0, 1]], dtype=np.float32)
+CROP_DIMS = (192, 640)
+
+K = P_rect_02
+K[0] *= CROP_DIMS[1]
+K[1] *= CROP_DIMS[0]
 
 crop = transforms.Compose([
-    transforms.CenterCrop((480, 640)),
+    transforms.CenterCrop(CROP_DIMS),
 ])
 
-
-reader = VideoReader('vid.mp4', 'video')
+reader = VideoReader('ucu_UsuiqF6T.mp4', 'video')
 
 fps = reader.get_metadata()['video']['fps'][0]
-duration = 3
-frames = math.ceil(duration * fps)
+duration = 19
+frames = math.floor(duration * fps)
 
-depths = torch.empty(frames, 480, 640, 3)
-
+depths = torch.empty(frames, *CROP_DIMS, 3)
 
 model_name = "mono+stereo_640x192"
 
@@ -64,70 +71,121 @@ encoder.eval()
 depth_decoder.eval()
 
 
+data = KittiRaw('data/2011_09_26_drive_0009_sync/', transform=crop)
+
+
 def calc_depth(frame):
-    data = frame['data'].float() / 255.0
-    data = crop(data).unsqueeze(0).float().to('cpu')
+    data = frame.float() / 255.0
+    data = data.unsqueeze(0).float().to('cpu')
 
     with torch.no_grad():
         features = encoder(data)
         outputs = depth_decoder(features)
 
     disp = outputs[("disp", 0)]
-    disp = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
+    depth = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
 
-    return torch.reshape(disp[0], (480, 640))
+    return torch.reshape(depth[0], CROP_DIMS)
 
 
 def pixel_to_camera(point):
-    return np.array([point[0] - K[0, 2] / K[0, 0],
-                     point[1] - K[1, 2] / K[1, 1]])
+    return np.array([(point[0] - K[0, 2]) / K[0, 0],
+                     (point[1] - K[1, 2]) / K[1, 1]])
 
-points_3d_1 = []
-points_3d_2 = []
+# """"
+trajectory = [np.eye(4)]
+points = {}
+trajectory_lock = Lock()
+points_lock = Lock()
 
+Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, points_lock, trajectory_lock)).start()
 
-for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(reader, frames))):
-    print(frame_1['data'].shape)
-    height_ratio = frame_1['data'].shape[1] / 480.0
-    weight_ratio = frame_1['data'].shape[2] / 640.0
-    print(height_ratio, weight_ratio)
+kp_prev, des_prev = None, None
+for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(data, len(data)))):
+    print(idx)
 
-    img_1 = frame_1['data'].numpy().transpose(1, 2, 0)
-    img_2 = frame_2['data'].numpy().transpose(1, 2, 0)
+    # frame_1 = crop(frame_1['data'])
+    # frame_2 = crop(frame_2['data'])
 
-    img_1 = cv.cvtColor(img_1,cv.COLOR_BGR2GRAY)
+    points_2d_1 = []
+    points_2d_2 = []
+
+    points_3d_1 = []
+    points_3d_2 = []
+
+    # frame_1 = crop(read_image("000001.png", ImageReadMode.RGB))
+    # frame_2 = crop(read_image("000002.png", ImageReadMode.RGB))
+
+    img_1 = frame_1.numpy().transpose(1, 2, 0)
+    img_2 = frame_2.numpy().transpose(1, 2, 0)
+
+    img_1 = cv.cvtColor(img_1, cv.COLOR_BGR2GRAY)
     img_2 = cv.cvtColor(img_2, cv.COLOR_BGR2GRAY)
 
     orb = cv.ORB_create()
 
-    kp1, des1 = orb.detectAndCompute(img_1, None)
-    kp2, des2 = orb.detectAndCompute(img_2, None)
+    if kp_prev is None:
+        kp_1, des_1 = orb.detectAndCompute(img_1, None)
+    else:
+        kp_1, des_1 = kp_prev, des_prev
+    kp_2, des_2 = orb.detectAndCompute(img_2, None)
+    kp_prev, des_prev = kp_2, des_2
 
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
+    matches = bf.match(des_1, des_2)
     matches = sorted(matches, key=lambda x: x.distance)
 
-    # img3 = cv.drawMatches(img_1, kp1, img_2, kp2, matches, None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-
-    # cv.imwrite('test.jpg', img3)
-
-
-    depth = calc_depth(frame_1)
-    print(depth.shape)
+    depth_1 = calc_depth(frame_1)
+    depth_2 = calc_depth(frame_2)
 
     for match in matches:
-        p1 = kp1[match.queryIdx].pt
-        p2 = kp2[match.trainIdx].pt
+        p_1 = kp_1[match.queryIdx].pt
+        p_2 = kp_2[match.trainIdx].pt
 
-        d_1 = depth[int(p1[1] / height_ratio), int(p1[0] / weight_ratio)]
-        d_2 = depth[int(p2[1] / height_ratio), int(p2[0] / weight_ratio)]
+        points_2d_1.append(p_1)
+        points_2d_2.append(p_2)
 
-        p1 = d_1 * pixel_to_camera(p1)
-        p2 = d_2 * pixel_to_camera(p2)
+        d_1 = depth_1[int(p_1[1]), int(p_1[0])]
+        d_2 = depth_2[int(p_2[1]), int(p_2[0])]
 
-        points_3d_1.append(np.array([p1[0], p1[1], d_1]))
-        points_3d_2.append(np.array([p2[0], p2[1], d_2]))
+        p_1 = d_1 * pixel_to_camera(p_1)
+        p_2 = d_2 * pixel_to_camera(p_2)
 
-    print(points_3d_1)
+        points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
+        points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
-    break
+    _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
+    rvec = rvec.flatten()
+    tvec = tvec.flatten()
+
+    R, _ = cv.Rodrigues(rvec)
+
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = tvec
+
+    T = trajectory[idx] @ T
+
+    with trajectory_lock:
+        trajectory.append(T)
+
+    points_3d_2 = np.array(points_3d_2[:NUM_VISUALIZED_KEYPOINTS])
+
+    points_hom = np.hstack((points_3d_2, np.ones((points_3d_2.shape[0], 1))))
+    points_transformed_hom = np.dot(T, points_hom.T).T
+    points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
+
+    for i, match in enumerate(matches[:NUM_VISUALIZED_KEYPOINTS]):
+        des = des_2[match.trainIdx]
+        with points_lock:
+            points[des.tobytes()] = points_transformed[i]
+
+    # show_point_cloud(points_3d_2 + points_transformed.tolist())
+
+# plot_trajectory(trajectory)
+# show_point_cloud_and_trajectory(points.values(), trajectory)
+# """
+# cloud = PointCloud()
+# cloud.add_points([[1, 1, 1]])
+# cloud.run()
+# cloud.add_points([[10, 10, 10]])
