@@ -17,6 +17,7 @@ import sys
 sys.path.insert(0, "monodepth2/")
 
 import os
+from enum import Enum
 
 import monodepth2.networks as networks
 from monodepth2.utils import download_model_if_doesnt_exist
@@ -24,6 +25,8 @@ from monodepth2.layers import disp_to_depth
 
 from visualization import *
 from kitti import *
+from pnp import pnp
+
 
 NUM_VISUALIZED_KEYPOINTS = 10
 
@@ -42,13 +45,13 @@ crop = transforms.Compose([
     transforms.CenterCrop(CROP_DIMS),
 ])
 
-reader = VideoReader('ucu_UsuiqF6T.mp4', 'video')
+# reader = VideoReader('ucu_UsuiqF6T.mp4', 'video')
 
-fps = reader.get_metadata()['video']['fps'][0]
-duration = 19
-frames = math.floor(duration * fps)
+# fps = reader.get_metadata()['video']['fps'][0]
+# duration = 19
+# frames = math.floor(duration * fps)
 
-depths = torch.empty(frames, *CROP_DIMS, 3)
+# depths = torch.empty(frames, *CROP_DIMS, 3)
 
 model_name = "mono+stereo_640x192"
 
@@ -71,7 +74,7 @@ encoder.eval()
 depth_decoder.eval()
 
 
-data = KittiRaw('data/2011_09_26_drive_0009_sync/', transform=crop)
+data = KittiRaw('2011_09_26_drive_0009_sync/', transform=crop)
 
 
 def calc_depth(frame):
@@ -154,15 +157,17 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
         points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
         points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
-    _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
-    rvec = rvec.flatten()
-    tvec = tvec.flatten()
+    # _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
+    # rvec = rvec.flatten()
+    # tvec = tvec.flatten()
+    #
+    # R, _ = cv.Rodrigues(rvec)
+    #
+    # T = np.eye(4)
+    # T[:3, :3] = R
+    # T[:3, 3] = tvec
 
-    R, _ = cv.Rodrigues(rvec)
-
-    T = np.eye(4)
-    T[:3, :3] = R
-    T[:3, 3] = tvec
+    T = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
 
     T = trajectory[idx] @ T
 
@@ -182,10 +187,58 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     # show_point_cloud(points_3d_2 + points_transformed.tolist())
 
-# plot_trajectory(trajectory)
-# show_point_cloud_and_trajectory(points.values(), trajectory)
-# """
-# cloud = PointCloud()
-# cloud.add_points([[1, 1, 1]])
-# cloud.run()
-# cloud.add_points([[10, 10, 10]])
+
+class DepthModel:
+    def __init__(self):
+        pass
+
+    def calculate_depth(self):
+        pass
+
+class Monodepth2 (DepthModel):
+    pass
+
+
+class Input (Enum):
+    Images = 0
+    Video = 1
+
+
+class Chaika:
+    def __init__(self):
+        pass
+
+    def depth_model(self, model: DepthModel):
+        return self
+
+    def input(self, input: Input):
+        return self
+
+    def run(self):
+        return True
+
+
+    def _read_input(self):
+        pass
+
+    def _preprocess_frame(self):
+        pass
+
+    def _detect_features(self):
+        pass
+
+    def _match_descriptors(self):
+        pass
+
+    def _2d_to_3d(self):
+        pass
+
+    def _calculate_camera_pose(self):
+        pass
+
+    def _3d_to_world(self):
+        pass
+
+    def _update_features(self):
+        pass
+
