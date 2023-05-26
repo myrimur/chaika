@@ -107,10 +107,7 @@ basedir = 'data/2011_09_26_drive_0009_sync'
 date = '2011_09_26'
 drive = '0009'
 
-# The 'frames' argument is optional - default: None, which loads the whole dataset.
-# Calibration, timestamps, and IMU data are read automatically.
-# Camera and velodyne data are available via properties that create generators
-# when accessed, or through getter methods that provide random access.
+
 raw_data = pykitti.raw(basedir, date, drive, frames=range(len(data)))
 
 # dataset.calib:         Calibration data are accessible as a named tuple
@@ -124,18 +121,6 @@ raw_data = pykitti.raw(basedir, date, drive, frames=range(len(data)))
 # dataset.get_rgb(idx):  Returns the RGB stereo pair at idx
 # dataset.velo:          Returns a generator that loads velodyne scans as [x,y,z,reflectance]
 # dataset.get_velo(idx): Returns the velodyne scan at idx
-
-# point_velo = np.array([0,0,0,1])
-# point_cam0 = raw_data.calib.T_cam0_velo.dot(point_velo)
-
-# point_imu = np.array([0,0,0,1])
-# point_w = [o.T_w_imu.dot(point_imu) for o in raw_data.oxts]
-
-# for cam0_image in raw_data.cam0:
-#     # do something
-#     pass
-
-# cam2_image, cam3_image = raw_data.get_rgb(3)
 
 theta = np.pi / 2
 
@@ -161,22 +146,16 @@ R_delta = np.array([[np.cos(delta), 0, np.sin(delta), 0],
                 [-np.sin(delta), 0, np.cos(delta), 0],
                 [0, 0, 0, 1]])
 
-# trajectory_gt = []
-# for o in raw_data.oxts:
-#     R = o.T_w_imu[:3, :3]
-#     t = o.T_w_imu[:3, 3]
-#     T_imu_w = np.eye(4)
-#     T_imu_w[:3, :3] = R.T
-#     T_imu_w[:3, 3] = -R.T @ t
-#     trajectory_gt.append(T_imu_w)
+
 trajectory_gt = [np.eye(4)] + [R_delta.T @ R_z @ R_y.T @ o.T_w_imu for o in raw_data.oxts]
 trajectory = [np.eye(4)]
 trajectory_our = [np.eye(4)]
+trajectory_sack = [np.eye(4)]
 points = {}
 trajectory_lock = Lock()
 points_lock = Lock()
 
-Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, trajectory_gt, trajectory_our, points_lock, trajectory_lock)).start()
+Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, trajectory_gt, trajectory_our, trajectory_sack, points_lock, trajectory_lock)).start()
 
 
 frames_q = Queue()
@@ -253,13 +232,18 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     T_our = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
 
+    T_sack = pnp_ransac(np.array(points_3d_2), np.array(points_2d_1), K, 0.05, 100, 10)
+
     T = trajectory[idx] @ T
 
     T_our = trajectory_our[idx] @ T_our
 
+    T_sack = trajectory_sack[idx] @ T_sack
+
     with trajectory_lock:
         trajectory.append(T)
         trajectory_our.append(T_our)
+        trajectory_sack.append(T_sack)
 
     points_3d_2 = np.array(points_3d_2[:NUM_VISUALIZED_KEYPOINTS])
 

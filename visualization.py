@@ -92,7 +92,7 @@ def plot_trajectory(trajectory):
         pango.FinishFrame()
 
 
-def show_point_cloud_and_trajectory(points, trajectory, trajectory_gt, trajecrory_our, points_lock, trajectory_lock):
+def show_point_cloud_and_trajectory(points, trajectory, trajectory_gt, trajecrory_our, trajectory_our_ransac, points_lock, trajectory_lock):
     pango.CreateWindowAndBind("Point Cloud Viewer", 1024, 768)
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_BLEND)
@@ -134,8 +134,9 @@ def show_point_cloud_and_trajectory(points, trajectory, trajectory_gt, trajecror
         p = np.array([0, 0, 0])
         p_gt = np.array([0, 0, 0])
         p_our = np.array([0, 0, 0])
+        p_sack = np.array([0, 0, 0])
         with trajectory_lock:
-            for T, T_gt, T_our in zip(trajectory, trajectory_gt, trajecrory_our):
+            for T, T_gt, T_our, T_sack in zip(trajectory, trajectory_gt, trajecrory_our, trajectory_our_ransac):
                 glColor3d(1, 0, 0)
                 glBegin(GL_LINES)
 
@@ -160,65 +161,15 @@ def show_point_cloud_and_trajectory(points, trajectory, trajectory_gt, trajecror
                 glVertex3d(p_our[0], p_our[1], p_our[2])
                 glEnd()
 
+                glColor3d(0.4, 1, 0.725)
+                glBegin(GL_LINES)
+
+                glVertex3d(p_sack[0], p_sack[1], p_sack[2])
+                p_sack = T_sack[:-1, -1]
+                glVertex3d(p_sack[0], p_sack[1], p_sack[2])
+                glEnd()
+
         pango.FinishFrame()
-
-class PointCloud:
-    def __init__(self, width=640, height=480, title='My Window'):
-        self.width = width
-        self.height = height
-        self.title = title
-        self.win = None
-        self.points = None
-        self.point_cloud = None
-
-        # Create a PyPangolin window and bind it to a 3D rendering context
-        self.win = pango.CreateWindowAndBind(self.title, self.width, self.height)
-        self.view = pango.CreateDisplay()
-        self.view.SetHandler(pango.Handler3D())
-        self.view.SetBounds(0.0, 1.0, 0.0, 1.0, -640.0/480.0)
-        self.view.SetLock(pango.Lock.LockLeft, True)
-
-        # Set the PyPangolin window's background color to black
-        glClearColor(0.0, 0.0, 0.0, 0.0)
-
-        # Define the data source for the point cloud
-        self.points = np.zeros((1, 3))
-
-    def add_points(self, points):
-        self.points = np.append(self.points, points, axis=0)
-
-    def draw_points(self):
-        # Clear the current OpenGL buffer
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-
-        # Activate the view and set its properties
-        self.view.Activate(pango.ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.1, 1000),
-                            pango.ModelViewLookAt(0, -10, -8, 0, 0, 0, pango.AxisNegY))
-
-        # Draw the points
-        if self.points.shape[0] > 0:
-            pango.DrawPoints(self.points)
-
-        # Swap the OpenGL buffer to display the image
-        pango.FinishFrame()
-
-    def run(self):
-        # Start the PyPangolin main loop
-        while not pango.ShouldQuit():
-            # Clear the PyPangolin window's buffer
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-            print(self.points)
-
-            # d_cam.Activate(s_cam)
-
-            # Draw your points
-            self.draw_points()
-
-            # Swap the buffers to display the new frame
-            pango.FinishFrame()
-
-        # Close the PyPangolin window
-        self.win.DestroyWindow()
 
 
 def display_video(frames):
