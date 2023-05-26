@@ -15,6 +15,9 @@ import cv2 as cv
 
 import numpy as np
 
+import pykitti
+
+
 import sys
 
 sys.path.insert(0, "monodepth2/")
@@ -89,7 +92,7 @@ def calc_depth(frame):
         outputs = depth_decoder(features)
 
     disp = outputs[("disp", 0)]
-    depth = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
+    depth = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR * 1.5
 
     return torch.reshape(depth[0], CROP_DIMS)
 
@@ -99,12 +102,81 @@ def pixel_to_camera(point):
                      (point[1] - K[1, 2]) / K[1, 1]])
 
 # """"
+
+basedir = 'data/2011_09_26_drive_0009_sync'
+date = '2011_09_26'
+drive = '0009'
+
+# The 'frames' argument is optional - default: None, which loads the whole dataset.
+# Calibration, timestamps, and IMU data are read automatically.
+# Camera and velodyne data are available via properties that create generators
+# when accessed, or through getter methods that provide random access.
+raw_data = pykitti.raw(basedir, date, drive, frames=range(len(data)))
+
+# dataset.calib:         Calibration data are accessible as a named tuple
+# dataset.timestamps:    Timestamps are parsed into a list of datetime objects
+# dataset.oxts:          List of OXTS packets and 6-dof poses as named tuples
+# dataset.camN:          Returns a generator that loads individual images from camera N
+# dataset.get_camN(idx): Returns the image from camera N at idx
+# dataset.gray:          Returns a generator that loads monochrome stereo pairs (cam0, cam1)
+# dataset.get_gray(idx): Returns the monochrome stereo pair at idx
+# dataset.rgb:           Returns a generator that loads RGB stereo pairs (cam2, cam3)
+# dataset.get_rgb(idx):  Returns the RGB stereo pair at idx
+# dataset.velo:          Returns a generator that loads velodyne scans as [x,y,z,reflectance]
+# dataset.get_velo(idx): Returns the velodyne scan at idx
+
+# point_velo = np.array([0,0,0,1])
+# point_cam0 = raw_data.calib.T_cam0_velo.dot(point_velo)
+
+# point_imu = np.array([0,0,0,1])
+# point_w = [o.T_w_imu.dot(point_imu) for o in raw_data.oxts]
+
+# for cam0_image in raw_data.cam0:
+#     # do something
+#     pass
+
+# cam2_image, cam3_image = raw_data.get_rgb(3)
+
+theta = np.pi / 2
+
+# Define the rotation matrix around the x-axis
+R_x = np.array([[1, 0, 0, 0],
+                [0, np.cos(theta), -np.sin(theta), 0],
+                [0, np.sin(theta), np.cos(theta), 0],
+                [0, 0, 0, 1]])
+
+R_z = np.array([[np.cos(theta), -np.sin(theta), 0, 0],
+                [np.sin(theta), np.cos(theta), 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1]])
+
+R_y = np.array([[np.cos(theta), 0, np.sin(theta), 0],
+                [0, 1, 0, 0],
+                [-np.sin(theta), 0, np.cos(theta), 0],
+                [0, 0, 0, 1]])
+
+delta = theta / 5
+R_delta = np.array([[np.cos(delta), 0, np.sin(delta), 0],
+                [0, 1, 0, 0],
+                [-np.sin(delta), 0, np.cos(delta), 0],
+                [0, 0, 0, 1]])
+
+# trajectory_gt = []
+# for o in raw_data.oxts:
+#     R = o.T_w_imu[:3, :3]
+#     t = o.T_w_imu[:3, 3]
+#     T_imu_w = np.eye(4)
+#     T_imu_w[:3, :3] = R.T
+#     T_imu_w[:3, 3] = -R.T @ t
+#     trajectory_gt.append(T_imu_w)
+trajectory_gt = [np.eye(4)] + [R_delta.T @ R_z @ R_y.T @ o.T_w_imu for o in raw_data.oxts]
 trajectory = [np.eye(4)]
+trajectory_our = [np.eye(4)]
 points = {}
 trajectory_lock = Lock()
 points_lock = Lock()
 
-Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, points_lock, trajectory_lock)).start()
+Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, trajectory_gt, trajectory_our, points_lock, trajectory_lock)).start()
 
 
 frames_q = Queue()
@@ -169,25 +241,25 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
         points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
         points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
-    # _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
-    # rvec = rvec.flatten()
-    # tvec = tvec.flatten()
-    #
-    # R, _ = cv.Rodrigues(rvec)
-    #
-    # T = np.eye(4)
-    # T[:3, :3] = R
-    # T[:3, 3] = tvec
+    _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
+    rvec = rvec.flatten()
+    tvec = tvec.flatten()
 
-    T = pnp_ransac(np.array(points_3d_2), np.array(points_2d_1), K, 0.05, 100, 5)
-    w = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
+    R, _ = cv.Rodrigues(rvec)
 
-    print(T, w)
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = tvec
+
+    T_our = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
 
     T = trajectory[idx] @ T
 
+    T_our = trajectory_our[idx] @ T_our
+
     with trajectory_lock:
         trajectory.append(T)
+        trajectory_our.append(T_our)
 
     points_3d_2 = np.array(points_3d_2[:NUM_VISUALIZED_KEYPOINTS])
 
