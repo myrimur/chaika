@@ -135,35 +135,32 @@ def show_point_cloud_and_trajectory(points, trajectory, trajectory_gt, trajecror
         p_gt = np.array([0, 0, 0])
         p_our = np.array([0, 0, 0])
         p_sack = np.array([0, 0, 0])
+
         with trajectory_lock:
             for T, T_gt, T_our, T_sack in zip(trajectory, trajectory_gt, trajecrory_our, trajectory_our_ransac):
-                glColor3d(1, 0, 0)
+                glColor3d(0.86, 1, 0)
                 glBegin(GL_LINES)
-
                 glVertex3d(p[0], p[1], p[2])
                 p = T[:-1, -1]
                 glVertex3d(p[0], p[1], p[2])
                 glEnd()
 
-                glColor3d(0.5, 0, 0.5)
+                glColor3d(1, 0, 0)
                 glBegin(GL_LINES)
-
                 glVertex3d(p_gt[0], p_gt[1], p_gt[2])
                 p_gt = T_gt[:-1, -1]
                 glVertex3d(p_gt[0], p_gt[1], p_gt[2])
                 glEnd()
 
-                glColor3d(1, 1, 0)
+                glColor3d(0, 1, 0.86)
                 glBegin(GL_LINES)
-
                 glVertex3d(p_our[0], p_our[1], p_our[2])
                 p_our = T_our[:-1, -1]
                 glVertex3d(p_our[0], p_our[1], p_our[2])
                 glEnd()
 
-                glColor3d(0.4, 1, 0.725)
+                glColor3d(0.33, 0.4, 1)
                 glBegin(GL_LINES)
-
                 glVertex3d(p_sack[0], p_sack[1], p_sack[2])
                 p_sack = T_sack[:-1, -1]
                 glVertex3d(p_sack[0], p_sack[1], p_sack[2])
@@ -181,3 +178,17 @@ def display_video(frames):
             cv.imshow("Original video", frame)
             if cv.waitKey(1) == ord('q'):
                 break
+
+
+def display_trajectory_legend():
+    fig = plt.figure(figsize=(4, 2))
+    fig.canvas.manager.set_window_title('Algorithms')
+    colors = [(1, 0, 0), (0.86, 1, 0), (0, 1, 0.86), (0.33, 0.4, 1)]
+    f = lambda m, c: plt.plot([], [], marker=m, color=c, ls="none")[0]
+    handles = [f("s", colors[i]) for i in range(len(colors))]
+    labels = ['Ground Truth', 'OpenCV PnP RANSAC', 'Our PnP', 'Our PnP RANSAC']
+    legend = plt.legend(handles, labels, loc=len(colors), framealpha=1, frameon=True)
+    legend.axes.axis("off")
+    fig = legend.figure
+    fig.canvas.draw()
+    plt.show()

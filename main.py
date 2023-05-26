@@ -162,6 +162,7 @@ frames_q = Queue()
 pr = Thread(target=display_video, args=(frames_q,))
 pr.start()
 
+Thread(target=display_trajectory_legend).start()
 
 kp_prev, des_prev = None, None
 for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(data, len(data)))):
