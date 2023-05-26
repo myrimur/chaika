@@ -61,7 +61,7 @@ def homogenize(a: np.ndarray) -> np.ndarray:
     return np.hstack((a, np.ones((len(a), 1))))
 
 def world_to_camera(points: np.ndarray, pose) -> np.ndarray:
-    return homogenize(points) @ pose.T
+    return homogenize(points) @ pose[:-1].T
 
 
 def camera_to_pixel(points: np.ndarray, intrinsics: np.ndarray) -> np.ndarray:
@@ -76,10 +76,6 @@ def world_to_pixel(points: np.ndarray, pose, intrinsics: np.ndarray) -> np.ndarr
 def pnp_ransac(points_3d, points_2d, K, threshold, iterations=100, sample_size=3):
     best_pose = None
     best_inliers = []
-    fx = K[0, 0]
-    fy = K[1, 1]
-    cx = K[0, 2]
-    cy = K[1, 2]
 
     num_points = len(points_3d)
 
@@ -91,37 +87,13 @@ def pnp_ransac(points_3d, points_2d, K, threshold, iterations=100, sample_size=3
 
         pose = pnp(sampled_points_3d, sampled_points_2d, K)
 
-        inliers = []
+        # inliers = []
 
         proj = world_to_pixel(points_3d, pose, K)
-        error = np.linalg.norm(points_2d - proj)
-        inliers.append(np.where(error < threshold)[0])
+        error = np.linalg.norm(points_2d - proj, axis=1)
+        inliers = np.where(error <= threshold)[0]
 
 
-        # points_3d_homogeneous = np.hstack((points_3d, np.ones((points_3d.shape[0], 1))))
-        # # Apply the transformation to the 3D points
-        # transformed_3d = pose @ points_3d_homogeneous.T
-        # # Convert the homogeneous 2D points to Cartesian coordinates
-        # points_2d_proj = transformed_3d[:, :2] / transformed_3d[:, 2:]
-        #
-        # error = np.linalg.norm(points_2d - points_2d_proj.T)
-        #
-        # # Check if the point is an inlier based on the threshold
-        # inliers.append(np.where(error < threshold)[0])
-
-        # for i in range(num_points):
-        #     # Project the 3D point onto the image plane using the current pose
-        #     pc = (pose[:3, :3] @ points_3d[i]).flatten()
-        #     proj = np.array([fx * pc[0] / pc[2] + cx, fy * pc[1] / pc[2] + cy])
-        #
-        #     # Calculate the reprojection error
-        #     error = np.linalg.norm(points_2d[i] - proj)
-        #
-        #     # Check if the point is an inlier based on the threshold
-        #     if error < threshold:
-        #         inliers.append(i)
-
-        # Update the best pose and inliers if the current model is better
         if len(inliers) > len(best_inliers):
             best_pose = pose
             best_inliers = inliers
