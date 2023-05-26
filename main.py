@@ -89,7 +89,7 @@ def calc_depth(frame):
         outputs = depth_decoder(features)
 
     disp = outputs[("disp", 0)]
-    depth = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR
+    depth = disp_to_depth(disp, MIN_DEPTH, MAX_DEPTH)[-1] * STEREO_SCALE_FACTOR * 1.5
 
     return torch.reshape(depth[0], CROP_DIMS)
 
@@ -152,6 +152,12 @@ R_y = np.array([[np.cos(theta), 0, np.sin(theta), 0],
                 [-np.sin(theta), 0, np.cos(theta), 0],
                 [0, 0, 0, 1]])
 
+delta = theta / 5
+R_delta = np.array([[np.cos(delta), 0, np.sin(delta), 0],
+                [0, 1, 0, 0],
+                [-np.sin(delta), 0, np.cos(delta), 0],
+                [0, 0, 0, 1]])
+
 # trajectory_gt = []
 # for o in raw_data.oxts:
 #     R = o.T_w_imu[:3, :3]
@@ -160,13 +166,14 @@ R_y = np.array([[np.cos(theta), 0, np.sin(theta), 0],
 #     T_imu_w[:3, :3] = R.T
 #     T_imu_w[:3, 3] = -R.T @ t
 #     trajectory_gt.append(T_imu_w)
-trajectory_gt = [R_z @ R_y.T @ o.T_w_imu for o in raw_data.oxts]
+trajectory_gt = [np.eye(4)] + [R_delta.T @ R_z @ R_y.T @ o.T_w_imu for o in raw_data.oxts]
 trajectory = [np.eye(4)]
+trajectory_our = [np.eye(4)]
 points = {}
 trajectory_lock = Lock()
 points_lock = Lock()
 
-Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, points_lock, trajectory_lock)).start()
+Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, trajectory_gt, trajectory_our, points_lock, trajectory_lock)).start()
 
 kp_prev, des_prev = None, None
 for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(data, len(data)))):
@@ -222,28 +229,30 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
         points_3d_1.append(np.array([p_1[0], p_1[1], d_1]))
         points_3d_2.append(np.array([p_2[0], p_2[1], d_2]))
 
-    # _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
-    # rvec = rvec.flatten()
-    # tvec = tvec.flatten()
-    #
-    # R, _ = cv.Rodrigues(rvec)
-    #
-    # T = np.eye(4)
-    # T[:3, :3] = R
-    # T[:3, 3] = tvec
+    _, rvec, tvec, _ = cv.solvePnPRansac(np.array(points_3d_2), np.array(points_2d_1), K, None)
+    rvec = rvec.flatten()
+    tvec = tvec.flatten()
 
-    T = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
+    R, _ = cv.Rodrigues(rvec)
+
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = tvec
+
+    T_our = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
 
     T = trajectory[idx] @ T
 
+    T_our = trajectory_our[idx] @ T_our
+
     with trajectory_lock:
-        # trajectory.append(T)
-        trajectory.append(trajectory_gt[idx])
+        trajectory.append(T)
+        trajectory_our.append(T_our)
 
     points_3d_2 = np.array(points_3d_2[:NUM_VISUALIZED_KEYPOINTS])
 
     points_hom = np.hstack((points_3d_2, np.ones((points_3d_2.shape[0], 1))))
-    points_transformed_hom = np.dot(trajectory_gt[idx], points_hom.T).T
+    points_transformed_hom = np.dot(T, points_hom.T).T
     points_transformed = points_transformed_hom[:, :3] / points_transformed_hom[:, 3:]
 
     for i, match in enumerate(matches[:NUM_VISUALIZED_KEYPOINTS]):
