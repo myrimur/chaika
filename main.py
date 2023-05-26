@@ -28,7 +28,7 @@ from monodepth2.layers import disp_to_depth
 
 from visualization import *
 from kitti import *
-from pnp import pnp
+from pnp import pnp, pnp_ransac
 
 
 NUM_VISUALIZED_KEYPOINTS = 10
@@ -77,7 +77,7 @@ encoder.eval()
 depth_decoder.eval()
 
 
-data = KittiRaw('2011_09_26_drive_0009_sync/', transform=crop)
+data = KittiRaw('data/2011_09_26_drive_0009_sync/2011_09_26/2011_09_26_drive_0009_sync', transform=crop)
 
 
 def calc_depth(frame):
@@ -179,7 +179,10 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
     # T[:3, :3] = R
     # T[:3, 3] = tvec
 
-    T = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
+    T = pnp_ransac(np.array(points_3d_2), np.array(points_2d_1), K, 0.05, 100, 5)
+    w = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
+
+    print(T, w)
 
     T = trajectory[idx] @ T
 
