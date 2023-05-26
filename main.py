@@ -1,5 +1,8 @@
 import math
 from threading import Thread, Lock
+# from multiprocessing import Process
+
+from queue import Queue
 
 import torch
 from torchvision.io import write_video, VideoReader, read_image, ImageReadMode, write_png
@@ -28,7 +31,7 @@ from monodepth2.layers import disp_to_depth
 
 from visualization import *
 from kitti import *
-from pnp import pnp
+from pnp import pnp, pnp_ransac
 
 
 NUM_VISUALIZED_KEYPOINTS = 10
@@ -175,6 +178,12 @@ points_lock = Lock()
 
 Thread(target=show_point_cloud_and_trajectory, args=(points.values(), trajectory, trajectory_gt, trajectory_our, points_lock, trajectory_lock)).start()
 
+
+frames_q = Queue()
+pr = Thread(target=display_video, args=(frames_q,))
+pr.start()
+
+
 kp_prev, des_prev = None, None
 for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(data, len(data)))):
     print(idx)
@@ -188,14 +197,14 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
     points_3d_1 = []
     points_3d_2 = []
 
-    # frame_1 = crop(read_image("000001.png", ImageReadMode.RGB))
-    # frame_2 = crop(read_image("000002.png", ImageReadMode.RGB))
 
     img_1 = frame_1.numpy().transpose(1, 2, 0)
     img_2 = frame_2.numpy().transpose(1, 2, 0)
 
+
     img_1 = cv.cvtColor(img_1, cv.COLOR_BGR2GRAY)
     img_2 = cv.cvtColor(img_2, cv.COLOR_BGR2GRAY)
+
 
     orb = cv.ORB_create()
 
@@ -209,6 +218,9 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
     matches = bf.match(des_1, des_2)
     matches = sorted(matches, key=lambda x: x.distance)
+
+    display = cv.drawKeypoints(cv.cvtColor(img_1, cv.COLOR_BGR2RGB), kp_1, img_1)
+    frames_q.put(display)
 
     depth_1 = calc_depth(frame_1)
     depth_2 = calc_depth(frame_2)
@@ -262,58 +274,4 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     # show_point_cloud(points_3d_2 + points_transformed.tolist())
 
-
-class DepthModel:
-    def __init__(self):
-        pass
-
-    def calculate_depth(self):
-        pass
-
-class Monodepth2 (DepthModel):
-    pass
-
-
-class Input (Enum):
-    Images = 0
-    Video = 1
-
-
-class Chaika:
-    def __init__(self):
-        pass
-
-    def depth_model(self, model: DepthModel):
-        return self
-
-    def input(self, input: Input):
-        return self
-
-    def run(self):
-        return True
-
-
-    def _read_input(self):
-        pass
-
-    def _preprocess_frame(self):
-        pass
-
-    def _detect_features(self):
-        pass
-
-    def _match_descriptors(self):
-        pass
-
-    def _2d_to_3d(self):
-        pass
-
-    def _calculate_camera_pose(self):
-        pass
-
-    def _3d_to_world(self):
-        pass
-
-    def _update_features(self):
-        pass
-
+pr.join()

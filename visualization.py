@@ -1,6 +1,8 @@
 import pypangolin as pango
 from OpenGL.GL import *
 import numpy as np
+import cv2 as cv
+import matplotlib.pyplot as plt
 
 
 def show_point_cloud(points):
@@ -217,3 +219,14 @@ class PointCloud:
 
         # Close the PyPangolin window
         self.win.DestroyWindow()
+
+
+def display_video(frames):
+    frame = None
+    while True:
+        if not frames.empty():
+            frame = frames.get()
+        if frame is not None:
+            cv.imshow("Original video", frame)
+            if cv.waitKey(1) == ord('q'):
+                break

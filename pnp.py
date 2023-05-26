@@ -53,3 +53,49 @@ def pnp(points_3d, points_2d, K):
     # print(f"Pose:\n{pose}")
 
     return pose.A
+
+
+def homogenize(a: np.ndarray) -> np.ndarray:
+    if a.ndim == 1:
+        return np.hstack((a, 1))
+    return np.hstack((a, np.ones((len(a), 1))))
+
+def world_to_camera(points: np.ndarray, pose) -> np.ndarray:
+    return homogenize(points) @ pose[:-1].T
+
+
+def camera_to_pixel(points: np.ndarray, intrinsics: np.ndarray) -> np.ndarray:
+    points_pixel = points @ intrinsics.T
+    points_pixel /= points_pixel[:, 2:3]
+    return points_pixel[:, :-1]
+
+def world_to_pixel(points: np.ndarray, pose, intrinsics: np.ndarray) -> np.ndarray:
+    return camera_to_pixel(world_to_camera(points, pose), intrinsics)
+
+
+def pnp_ransac(points_3d, points_2d, K, threshold, iterations=100, sample_size=3):
+    best_pose = None
+    best_inliers = []
+
+    num_points = len(points_3d)
+
+    for _ in range(iterations):
+        # Randomly sample a subset of points
+        sample_indices = np.random.choice(num_points, sample_size, replace=False)
+        sampled_points_3d = points_3d[sample_indices]
+        sampled_points_2d = points_2d[sample_indices]
+
+        pose = pnp(sampled_points_3d, sampled_points_2d, K)
+
+        # inliers = []
+
+        proj = world_to_pixel(points_3d, pose, K)
+        error = np.linalg.norm(points_2d - proj, axis=1)
+        inliers = np.where(error <= threshold)[0]
+
+
+        if len(inliers) > len(best_inliers):
+            best_pose = pose
+            best_inliers = inliers
+
+    return best_pose
