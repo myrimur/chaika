@@ -13,4 +13,6 @@ Monodepth2 downloads weights automatically, but if you use AdaBins, you need to 
 
 [//]: # (<img src="demo/demo.gif" width="1000" height="800"/>)
 
+To run, download KITTY dataset [here](https://drive.google.com/file/d/1MO8aG4itpotpIy_VgWVToQPDYXCi57Fu/view?usp=sharing), unzip and put it in the folder `data/` without changing the folders structure.
+
 ![](demo/main.gif)
