@@ -233,7 +233,7 @@ for idx, (frame_1, frame_2) in enumerate(itertools.pairwise(itertools.islice(dat
 
     T_our = pnp(np.array(points_3d_2), np.array(points_2d_1), K)
 
-    T_sack = pnp_ransac(np.array(points_3d_2), np.array(points_2d_1), K, 0.05, 100, 10)
+    T_sack = pnp_ransac(np.array(points_3d_2), np.array(points_2d_1), K, 2, 100, 10)
 
     T = trajectory[idx] @ T
 

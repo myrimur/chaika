@@ -11,4 +11,6 @@ Monodepth2 downloads weights automatically, but if you use AdaBins, you need to 
 |----------------------------------------------------------------|---------------------------------|
 | <img src="demo/ada_bins_result.gif" width="420" height="340"/> | <img src="demo/monodepth2_result.gif" width="420" height="340"/> |
 
-<img src="demo/demo.gif" width="1000" height="800"/>
+[//]: # (<img src="demo/demo.gif" width="1000" height="800"/>)
+
+![](demo/main.gif)
